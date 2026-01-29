@@ -147,6 +147,7 @@ class ServiceBot:
         async def _help(_, m: Message):
             await m.reply_text(help_text())
 
+        # --- IMPORTANT UPDATE: Restart logic added here ---
         @self.app.on_message(filters.command("allow"))
         async def _allow(_, m: Message):
             uid = m.from_user.id
@@ -160,12 +161,27 @@ class ServiceBot:
             except Exception:
                 await m.reply_text("❌ chat_id সংখ্যা হতে হবে (যেমন -100...)")
                 return
+            
+            # DB Update
             cfg = await self.db.get_config(uid)
             allow = set(int(x) for x in cfg.get("allow_chats", []))
             allow.add(chat_id)
             await self.db.set_allow_chats(uid, sorted(list(allow)))
             await self.db.add_log(uid, "INFO", "Allow chat added", {"chat_id": chat_id})
-            await m.reply_text(f"✅ Added allow chat: `{chat_id}`")
+            
+            # --- RESTART CLIENT TO APPLY NEW TARGET GROUP ---
+            # এটি আপনার userbot_manager.py এর নতুন restart_client মেথড কল করবে
+            await m.reply_text(f"✅ Added allow chat: `{chat_id}`\n♻️ Restarting monitor to apply changes...")
+            
+            try:
+                # যদি userbot_manager.py এ restart_client না থাকে, তবে ensure_client কল হবে
+                if hasattr(self.userbots, 'restart_client'):
+                    await self.userbots.restart_client(uid)
+                else:
+                    # Fallback if method missing (though you should add it to manager)
+                    await self.userbots.ensure_client(uid)
+            except Exception as e:
+                await self.db.add_log(uid, "ERROR", f"Restart failed: {e}")
 
         @self.app.on_message(filters.command("allowlist"))
         async def _allowlist(_, m: Message):
