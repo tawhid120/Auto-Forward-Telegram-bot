@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Userbot SaaS - Live Logs</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">Userbot SaaS</div>
+    <div class="sub">Live Bot Logs (auto-refresh)</div>
+  </header>
+
+  <main class="wrap">
+    <section class="card">
+      <div class="row">
+        <h2>📡 Activity Stream</h2>
+        <div class="controls">
+          <button id="refresh">Refresh</button>
+          <select id="limit">
+            <option value="100">100</option>
+            <option value="200" selected>200</option>
+            <option value="500">500</option>
+          </select>
+        </div>
+      </div>
+
+      <div id="status" class="status">Loading...</div>
+      <div id="loglist" class="loglist"></div>
+    </section>
+  </main>
+
+<script>
+  const statusEl = document.getElementById("status");
+  const listEl = document.getElementById("loglist");
+  const refreshBtn = document.getElementById("refresh");
+  const limitSel = document.getElementById("limit");
+
+  function fmt(ts){
+    const d = new Date(ts * 1000);
+    return d.toLocaleString();
+  }
+
+  function esc(s){
+    return (s || "").toString()
+      .replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;");
+  }
+
+  async function load(){
+    const limit = limitSel.value;
+    statusEl.textContent = "Updating...";
+    try{
+      const r = await fetch(`/api/logs?limit=${limit}`);
+      const j = await r.json();
+      if(!j.ok){ statusEl.textContent = "Failed"; return; }
+
+      const logs = j.logs || [];
+      statusEl.textContent = `Showing ${logs.length} logs`;
+
+      listEl.innerHTML = logs.map(x => {
+        const badge = (x.level || "INFO").toUpperCase();
+        return `
+          <div class="log">
+            <div class="meta">
+              <span class="badge ${badge}">${badge}</span>
+              <span class="time">${fmt(x.ts)}</span>
+              <span class="uid">user: ${x.user_id}</span>
+            </div>
+            <div class="msg">${esc(x.message)}</div>
+          </div>
+        `;
+      }).join("");
+    }catch(e){
+      statusEl.textContent = "Error loading logs";
+    }
+  }
+
+  refreshBtn.addEventListener("click", load);
+  limitSel.addEventListener("change", load);
+  load();
+  setInterval(load, 5000);
+</script>
+</body>
+</html>
